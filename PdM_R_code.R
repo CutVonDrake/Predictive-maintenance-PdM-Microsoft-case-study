@@ -1,12 +1,12 @@
 setwd("C:\\Users\\andre\\Desktop\\Progetto R Data factory")
-
+#Install packages required is never done before:
 #install.packages("dplyr")
 #install.packages("zoo")
 #install.packages("data.table")
 #install.packages("gbm")
 #install.packages("ggplot2")
 
-
+#Import packages required
 library("ggplot2")
 library("dplyr")   #we will use the pipe %>% from this package
 library("zoo")
@@ -83,16 +83,8 @@ ggplot(data=failures, aes(x=machineID))+
        x="machineID")
 
 
-
-str(telemetry)
-str(failures)
-str(maint)
-str(errors)
-str(machines)
-
-
+#DATA PREPROCESSING
 #TELEMETRY
-
 telemetry$datetime <- as.POSIXct(telemetry$datetime, format="%Y-%m-%d %H:%M:%S", tz="UTC")
 
 #ERRORS
@@ -139,7 +131,8 @@ range(telemetry$volt)
 
 
 #FEATURE ENGENEERING
-
+#We do it using the rolling apply function
+#TELEMETRY
 telemetrymean <- telemetry %>%
   arrange(machineID,datetime) %>%
   group_by(machineID) %>%
@@ -162,7 +155,6 @@ telemetrysd <- telemetry %>%
   filter(!is.na(voltsd)) %>%
   ungroup()
 
-
 telemetrymean_24h <- telemetry %>%
   arrange(machineID,datetime) %>%
   group_by(machineID) %>%
@@ -173,8 +165,6 @@ telemetrymean_24h <- telemetry %>%
   select(machineID,datetime,voltmean_24h,rotatemean_24h,pressuremean_24h,vibrationmean_24h) %>%
   filter(!is.na(voltmean_24h)) %>%
   ungroup()
-
-
 
 telemetrysd_24h <- telemetry %>%
   arrange(machineID,datetime) %>%
@@ -193,8 +183,6 @@ telemetryfeat_24h <- data.frame(telemetrymean_24h, telemetrysd_24h[,-c(1:2)])
 telemetryfeat_final <- telemetryfeat %>%
   left_join(telemetryfeat_24h, by=c("datetime", "machineID"))%>%
   filter(!is.na(voltmean_24h))
-
-
 
 #ERRORS
 str(errors)
@@ -223,7 +211,6 @@ errorfeat <- telemetry %>%
 errorfeat[is.na(errorfeat)] <- 0
 View(errorfeat)
 
-
 errorfeat_final <- errorfeat %>%
   arrange(machineID,datetime) %>%
   group_by(machineID) %>%
@@ -236,9 +223,7 @@ errorfeat_final <- errorfeat %>%
   filter(!is.na(error1count)) %>%
   ungroup()
 View(errorfeat_final)
-
 nrow(errorfeat_final)
-
 
 #MAINTENANCE
 comprep <- maint %>%
@@ -256,7 +241,6 @@ comp2rep <- comprep[comp2==1, .(datetime,machineID,lastrepcomp2=datetime)]
 comp3rep <- comprep[comp3==1, .(datetime,machineID,lastrepcomp3=datetime)]
 comp4rep <- comprep[comp4==1, .(datetime,machineID,lastrepcomp4=datetime)]
 
-
 compdate <- as.data.table(telemetryfeat_final[,c(1:2)])
 setkey(compdate,machineID,datetime)
 
@@ -270,12 +254,10 @@ comp2feat$sincelastcomp2 <- as.numeric(difftime(comp2feat$datetime, comp2feat$la
 comp3feat$sincelastcomp3 <- as.numeric(difftime(comp3feat$datetime, comp3feat$lastrepcomp3, units = 'days'))
 comp4feat$sincelastcomp4 <- as.numeric(difftime(comp4feat$datetime,comp4feat$lastrepcomp4, units='days'))
 
-
 compfeat_final <- data.frame(compdate, comp1feat[,.(sincelastcomp1)], comp2feat[,.(sincelastcomp2)], comp3feat[,.(sincelastcomp3)], comp4feat[,.(sincelastcomp4)])
 
-#machines nothing to do
-
-
+#MACHINES: nothing to do
+#FINAL DATASET
 finalfeat <- data.frame(telemetryfeat_final,errorfeat_final[,-c(1:2)])
 finalfeat <- finalfeat %>%
   left_join(compfeat_final, by=c('datetime', 'machineID')) %>%
@@ -284,10 +266,7 @@ finalfeat <- finalfeat %>%
 View(finalfeat)
 
 
-
-
 #DATA LABELING
-
 labeled <- left_join(finalfeat, failures, by=c('machineID')) %>%
   mutate(datediff = difftime(datetime.y, datetime.x, units = 'hours')) %>%
   filter(datediff<=24, datediff>=0)
@@ -346,7 +325,7 @@ ggplot(labeledfeatures, aes(x=failure)) +
   labs(title = "label distribution", x = "labels")
 
 
-
+#EVALUATING
 # define evaluate function 
 Evaluate<-function(actual=NULL, predicted=NULL, cm=NULL){
   if(is.null(cm)) {
